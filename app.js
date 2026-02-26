@@ -38,10 +38,15 @@ const contentGrid   = $('contentGrid');
 
 // ─── INIT ─────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  loadSettings();        // apply saved theme, unit, keys first
+  loadSettings();
   setupEventListeners();
-  setupSettings();       // wire up settings panel
-  setupModals();         // wire up expand/modal buttons
+  setupSettings();
+  setupModals();
+  setupSidenav();
+  // Show home view by default
+  document.querySelectorAll('.view-panel').forEach(el => el.style.display = 'none');
+  const home = document.getElementById('view-home');
+  if (home) home.style.display = '';
   initWeather();
 });
 
@@ -782,14 +787,14 @@ async function initRadarMap() {
 
   const map = L.map('radarMap', {
     center: [state.lat, state.lon],
-    zoom: 7,
+    zoom: 8,
     zoomControl: true,
     attributionControl: false,
   });
   state.radarMap = map;
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18, opacity: 0.65,
+    maxZoom: 18, opacity: 0.75,
   }).addTo(map);
 
   L.circleMarker([state.lat, state.lon], {
@@ -1467,4 +1472,302 @@ function destroyModalRadar() {
   if (tl) tl.innerHTML = '';
   const mapDiv = document.getElementById('radarMapModal');
   if (mapDiv) mapDiv.innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════════════
+// SIDENAV & VIEW ROUTING
+// ═══════════════════════════════════════════════════════
+
+let currentView = 'home';
+let monthlyOffset = 0; // months offset from today for monthly view
+
+// Solo radar state (Radar view's independent map)
+let soloRadar = {
+  map: null, layers: [], frames: [],
+  pastCount: 0, frameIndex: 0,
+  playing: false, timer: null,
+};
+
+function setupSidenav() {
+  const btn     = document.getElementById('hamburgerBtn');
+  const nav     = document.getElementById('sidenav');
+  const overlay = document.getElementById('sidenavOverlay');
+  const shell   = document.getElementById('pageShell');
+
+  function openNav() {
+    nav.classList.add('open');
+    overlay.classList.add('open');
+    btn.classList.add('open');
+    shell.classList.add('nav-open');
+  }
+  function closeNav() {
+    nav.classList.remove('open');
+    overlay.classList.remove('open');
+    btn.classList.remove('open');
+    shell.classList.remove('nav-open');
+  }
+
+  btn.addEventListener('click', () => nav.classList.contains('open') ? closeNav() : openNav());
+  overlay.addEventListener('click', closeNav);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+
+  // Nav item clicks
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      navigateTo(item.dataset.view);
+      // On mobile, close the nav after selection
+      if (window.innerWidth < 900) closeNav();
+    });
+  });
+}
+
+function navigateTo(view) {
+  if (view === currentView) return;
+  currentView = view;
+
+  // Update active state
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === view);
+  });
+
+  // Hide all view panels
+  document.querySelectorAll('.view-panel').forEach(el => el.style.display = 'none');
+
+  // Show target panel
+  const panel = document.getElementById('view-' + view);
+  if (panel) panel.style.display = '';
+
+  // Populate view-specific content
+  if (state.weatherData) {
+    if (view === 'today')   renderTodayView(state.weatherData);
+    if (view === 'hourly')  renderHourlySolo(state.weatherData);
+    if (view === 'tenday')  renderTendaySolo(state.weatherData);
+    if (view === 'monthly') renderMonthlyView(state.weatherData);
+    if (view === 'radar')   initSoloRadar();
+  }
+
+  // Destroy solo radar if leaving radar view
+  if (view !== 'radar') destroySoloRadar();
+}
+
+// ── TODAY VIEW ────────────────────────────────────────
+function renderTodayView(data) {
+  const grid = document.querySelector('#view-today .today-grid');
+  if (!grid) return;
+  // Clone the hero card and extras from home view
+  grid.innerHTML = '';
+  const heroClone   = document.querySelector('#view-home .hero-card');
+  const extrasClone = document.querySelector('#view-home .extras-row');
+  if (heroClone)   grid.appendChild(heroClone.cloneNode(true));
+  if (extrasClone) grid.appendChild(extrasClone.cloneNode(true));
+}
+
+// ── HOURLY SOLO VIEW ──────────────────────────────────
+function renderHourlySolo(data) {
+  const list = document.getElementById('hourlyScrollSolo');
+  if (!list) return;
+  buildHourlyList(getHourlySlice(data), list);
+
+  // Wire solo pill tabs
+  document.querySelectorAll('[data-solo]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-solo]').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      state.hourLimit = parseInt(btn.dataset.hours);
+      buildHourlyList(getHourlySlice(data), list);
+    });
+  });
+}
+
+// ── 10-DAY SOLO VIEW ──────────────────────────────────
+function renderTendaySolo(data) {
+  const list = document.getElementById('tendayListSolo');
+  if (list) buildTenDayList(data, list);
+}
+
+// ── MONTHLY VIEW ──────────────────────────────────────
+function renderMonthlyView(data) {
+  const container = document.getElementById('monthlyGrid');
+  if (!container) return;
+
+  const now   = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth() + monthlyOffset, 1);
+  const year  = target.getFullYear();
+  const month = target.getMonth();
+
+  // Add nav controls (only once per render)
+  const card = container.closest('.card');
+  let navEl = card.querySelector('.monthly-nav');
+  if (!navEl) {
+    navEl = document.createElement('div');
+    navEl.className = 'monthly-nav';
+    navEl.innerHTML = `
+      <button class="monthly-nav-btn" id="monthPrev">&#8249;</button>
+      <h3></h3>
+      <button class="monthly-nav-btn" id="monthNext">&#8250;</button>
+    `;
+    card.querySelector('.card-header').after(navEl);
+    document.getElementById('monthPrev').addEventListener('click', () => { monthlyOffset--; renderMonthlyView(state.weatherData); });
+    document.getElementById('monthNext').addEventListener('click', () => { monthlyOffset++; renderMonthlyView(state.weatherData); });
+  }
+  navEl.querySelector('h3').textContent = target.toLocaleDateString([], { month: 'long', year: 'numeric' });
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDow    = new Date(year, month, 1).getDay(); // 0=Sun
+  const today       = new Date();
+
+  // Get forecast data for available days
+  const forecastByDate = {};
+  if (data && data.forecast) {
+    data.forecast.forecastday.forEach(d => { forecastByDate[d.date] = d; });
+  }
+
+  container.innerHTML = '';
+
+  // Day-of-week headers
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'monthly-dow';
+    el.textContent = d;
+    container.appendChild(el);
+  });
+
+  // Empty cells before first day
+  for (let i = 0; i < firstDow; i++) {
+    const el = document.createElement('div');
+    el.className = 'monthly-cell empty';
+    container.appendChild(el);
+  }
+
+  // Day cells
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday = (day === today.getDate() && month === today.getMonth() && year === today.getFullYear());
+    const fc      = forecastByDate[dateStr];
+
+    const cell = document.createElement('div');
+    cell.className = 'monthly-cell' + (isToday ? ' today' : '');
+
+    const high = fc ? Math.round(state.unit === 'F' ? fc.day.maxtemp_f : fc.day.maxtemp_c) : '—';
+    const low  = fc ? Math.round(state.unit === 'F' ? fc.day.mintemp_f : fc.day.mintemp_c) : '—';
+    const icon = fc ? conditionEmoji(fc.day.condition.code, 1) : '';
+    const rain = fc && fc.day.daily_chance_of_rain > 0 ? `💧${fc.day.daily_chance_of_rain}%` : '';
+
+    cell.innerHTML = `
+      <div class="mc-day">${day}</div>
+      ${icon ? `<div class="mc-icon">${icon}</div>` : ''}
+      <div class="mc-high">${high}°</div>
+      <div class="mc-low">${low}°</div>
+      ${rain ? `<div class="mc-precip">${rain}</div>` : ''}
+    `;
+    container.appendChild(cell);
+  }
+}
+
+// ── SOLO RADAR ────────────────────────────────────────
+async function initSoloRadar() {
+  if (!checkLeaflet()) return;
+  destroySoloRadar();
+
+  const map = L.map('radarMapSolo', {
+    center: [state.lat || 40.7, state.lon || -74.0],
+    zoom: 8, zoomControl: true, attributionControl: false,
+  });
+  soloRadar.map = map;
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18, opacity: 0.75,
+  }).addTo(map);
+
+  if (state.lat && state.lon) {
+    L.circleMarker([state.lat, state.lon], {
+      radius: 8, fillColor: '#2563EB', fillOpacity: 1, color: '#fff', weight: 2,
+    }).addTo(map);
+  }
+
+  if (!TOMORROW_KEY || TOMORROW_KEY === 'YOUR_TOMORROW_IO_KEY') {
+    showRadarKeyError(); return;
+  }
+
+  const frames = buildTomorrowFrames();
+  soloRadar.frames    = frames;
+  soloRadar.pastCount = frames.filter(f => f.isPast).length;
+
+  soloRadar.layers = frames.map(frame => {
+    const tileUrl = `https://api.tomorrow.io/v4/map/tile/{z}/{x}/{y}/precipitationIntensity/${frame.ts}.png?apikey=${TOMORROW_KEY}`;
+    const layer = L.tileLayer(tileUrl, { opacity: 0, maxZoom: 12, tileSize: 256 });
+    layer.addTo(map);
+    return layer;
+  });
+
+  // Timeline
+  const tl = document.getElementById('radarTimelineSolo');
+  tl.innerHTML = '';
+  frames.forEach((frame, i) => {
+    if (i === soloRadar.pastCount) {
+      const pin = document.createElement('div');
+      pin.className = 'radar-now-pin'; tl.appendChild(pin);
+    }
+    const dot = document.createElement('div');
+    dot.className = 'radar-frame-dot ' + (i < soloRadar.pastCount ? 'past' : 'future');
+    dot.title = radarFrameLabel(frame);
+    dot.addEventListener('click', () => { stopSoloRadar(); soloRadar.frameIndex = i; showSoloRadarFrame(i); });
+    tl.appendChild(dot);
+  });
+
+  soloRadar.frameIndex = soloRadar.pastCount;
+  showSoloRadarFrame(soloRadar.frameIndex);
+  stopSoloRadar(); // start paused
+
+  // Wire play/pause
+  document.getElementById('radarPlaySolo').addEventListener('click', () => {
+    soloRadar.playing ? stopSoloRadar() : startSoloRadar();
+  });
+  document.getElementById('radarPauseSolo').addEventListener('click', stopSoloRadar);
+}
+
+function showSoloRadarFrame(index) {
+  if (!soloRadar.map || !soloRadar.layers.length) return;
+  const isFuture = index > soloRadar.pastCount;
+  const isNow    = index === soloRadar.pastCount;
+  soloRadar.layers.forEach((l, i) => l.setOpacity(i === index ? 0.7 : 0));
+  const label = radarFrameLabel(soloRadar.frames[index]);
+  document.getElementById('radarTimeLabelSolo').textContent =
+    isNow ? '📡 Now' : isFuture ? '🔮 Forecast ' + label : '📡 ' + label;
+  document.querySelectorAll('#radarTimelineSolo .radar-frame-dot').forEach((d, i) => d.classList.toggle('active', i === index));
+}
+
+function startSoloRadar() {
+  stopSoloRadar();
+  soloRadar.playing = true;
+  document.getElementById('radarPlaySolo').classList.add('active');
+  document.getElementById('radarPauseSolo').classList.remove('active');
+  const loopStart = soloRadar.pastCount, loopEnd = soloRadar.frames.length - 1;
+  soloRadar.frameIndex = loopStart; showSoloRadarFrame(loopStart);
+  function tick() {
+    if (!soloRadar.playing) return;
+    if (soloRadar.frameIndex >= loopEnd) {
+      soloRadar.timer = setTimeout(() => { if (!soloRadar.playing) return; soloRadar.frameIndex = loopStart; showSoloRadarFrame(loopStart); soloRadar.timer = setTimeout(tick, 800); }, 2500);
+    } else { soloRadar.frameIndex++; showSoloRadarFrame(soloRadar.frameIndex); soloRadar.timer = setTimeout(tick, 800); }
+  }
+  soloRadar.timer = setTimeout(tick, 800);
+}
+
+function stopSoloRadar() {
+  soloRadar.playing = false;
+  clearTimeout(soloRadar.timer); soloRadar.timer = null;
+  const p = document.getElementById('radarPlaySolo');
+  const u = document.getElementById('radarPauseSolo');
+  if (p) p.classList.remove('active');
+  if (u) u.classList.add('active');
+}
+
+function destroySoloRadar() {
+  stopSoloRadar();
+  if (soloRadar.map) { soloRadar.map.remove(); soloRadar.map = null; }
+  soloRadar.layers = []; soloRadar.frames = [];
+  const tl = document.getElementById('radarTimelineSolo');
+  const md = document.getElementById('radarMapSolo');
+  if (tl) tl.innerHTML = '';
+  if (md) md.innerHTML = '';
 }

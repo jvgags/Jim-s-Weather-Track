@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Jim's Weather Track</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <!-- Leaflet CSS: try jsdelivr first, fallback to cdnjs -->
@@ -24,13 +25,18 @@
   <!-- HEADER -->
   <header class="app-header">
     <div class="header-left">
-      <div class="logo">
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-          <circle cx="14" cy="14" r="13" stroke="#2563EB" stroke-width="2"/>
-          <path d="M7 18 Q10 10 14 13 Q18 16 21 10" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
-          <circle cx="14" cy="8" r="3" fill="#F59E0B"/>
-        </svg>
-        <span class="logo-text">Jim's Weather Track</span>
+      <div class="logo-stack">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="13" stroke="#2563EB" stroke-width="2"/>
+            <path d="M7 18 Q10 10 14 13 Q18 16 21 10" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <circle cx="14" cy="8" r="3" fill="#F59E0B"/>
+          </svg>
+          <span class="logo-text">Jim's Weather Track</span>
+        </div>
+        <button class="hamburger-btn" id="hamburgerBtn" title="Menu">
+          <span></span><span></span><span></span>
+        </button>
       </div>
     </div>
     <div class="header-center">
@@ -127,7 +133,41 @@
     </div>
   </aside>
 
+  <!-- SIDE NAV -->
+  <nav class="sidenav" id="sidenav">
+    <div class="sidenav-inner">
+      <nav class="sidenav-menu">
+        <button class="nav-item active" data-view="home">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          <span>Home</span>
+        </button>
+        <button class="nav-item" data-view="today">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 6v6l4 2"/></svg>
+          <span>Today</span>
+        </button>
+        <button class="nav-item" data-view="hourly">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+          <span>Hourly</span>
+        </button>
+        <button class="nav-item" data-view="tenday">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+          <span>10 Day</span>
+        </button>
+        <button class="nav-item" data-view="monthly">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="13" y2="17"/></svg>
+          <span>Monthly</span>
+        </button>
+        <button class="nav-item" data-view="radar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/><line x1="12" y1="3" x2="14" y2="7"/></svg>
+          <span>Radar</span>
+        </button>
+      </nav>
+    </div>
+  </nav>
+  <div class="sidenav-overlay" id="sidenavOverlay"></div>
+
   <!-- MAIN -->
+  <div class="page-shell" id="pageShell">
   <main class="dashboard" id="dashboard">
 
     <!-- Loading State -->
@@ -143,10 +183,14 @@
       <button onclick="initWeather()">Retry</button>
     </div>
 
-    <!-- CONTENT -->
-    <div class="content-grid" id="contentGrid" style="display:none">
+    <!-- CONTENT VIEWS -->
+    <div id="contentGrid" style="display:none">
 
-      <!-- ROW 1: Hero Current Weather -->
+      <!-- VIEW: HOME (hero + extras) -->
+      <div class="view-panel" id="view-home">
+        <div class="content-grid home-grid">
+
+        <!-- ROW 1: Hero Current Weather -->
       <section class="card hero-card">
         <div class="hero-top">
           <div class="hero-location">
@@ -196,7 +240,7 @@
         </div>
       </section>
 
-      <!-- ROW 2: Hourly Forecast -->
+        <!-- ROW 2: Hourly Forecast -->
       <section class="card hourly-card">
         <div class="card-header">
           <h2>48-Hour Forecast</h2>
@@ -219,7 +263,7 @@
         </div>
       </section>
 
-      <!-- ROW 3: 10-Day Forecast -->
+        <!-- ROW 3: 10-Day Forecast -->
       <section class="card tenday-card">
         <div class="card-header">
           <h2>10-Day Forecast</h2>
@@ -232,7 +276,7 @@
         </div>
       </section>
 
-      <!-- ROW 4: Radar Map -->
+        <!-- ROW 4: Radar Map -->
       <section class="card radar-card">
         <div class="card-header">
           <h2>Live Radar</h2>
@@ -264,7 +308,7 @@
         </div>
       </section>
 
-      <!-- ROW 5: Extra Cards -->
+        <!-- ROW 5: Extra Cards -->
       <div class="extras-row">
         <!-- Air Quality -->
         <section class="card mini-card air-card">
@@ -326,8 +370,89 @@
         </section>
       </div>
 
+        </div><!-- end home-grid -->
+      </div><!-- end view-home -->
+
+      <!-- VIEW: TODAY (hero + extras full width) -->
+      <div class="view-panel" id="view-today" style="display:none">
+        <div class="content-grid today-grid">
+        </div>
+      </div>
+
+      <!-- VIEW: HOURLY -->
+      <div class="view-panel" id="view-hourly" style="display:none">
+        <div class="view-single">
+          <section class="card hourly-card-solo">
+            <div class="card-header">
+              <h2>48-Hour Forecast</h2>
+              <div class="card-header-actions">
+                <div class="tab-pills">
+                  <button class="pill active" data-hours="24" data-solo>24h</button>
+                  <button class="pill" data-hours="48" data-solo>48h</button>
+                </div>
+              </div>
+            </div>
+            <div class="hourly-col-headers">
+              <span></span><span></span><span>Condition</span>
+              <span>Rain</span><span>Humidity</span><span>Wind</span><span>Precip</span><span></span>
+            </div>
+            <div class="hourly-list" id="hourlyScrollSolo" style="max-height:none"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- VIEW: 10 DAY -->
+      <div class="view-panel" id="view-tenday" style="display:none">
+        <div class="view-single">
+          <section class="card">
+            <div class="card-header"><h2>10-Day Forecast</h2></div>
+            <div class="tenday-list" id="tendayListSolo"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- VIEW: MONTHLY -->
+      <div class="view-panel" id="view-monthly" style="display:none">
+        <div class="view-single">
+          <section class="card">
+            <div class="card-header"><h2>Monthly Overview</h2></div>
+            <div id="monthlyGrid" class="monthly-grid"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- VIEW: RADAR -->
+      <div class="view-panel" id="view-radar" style="display:none">
+        <div class="view-single">
+          <section class="card radar-card-solo" style="padding:0;overflow:hidden">
+            <div class="card-header" style="padding:16px 20px 12px">
+              <h2>Live Radar</h2>
+              <div class="card-header-actions">
+                <div class="radar-controls">
+                  <button id="radarPlaySolo" class="radar-btn active">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play
+                  </button>
+                  <button id="radarPauseSolo" class="radar-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> Pause
+                  </button>
+                  <span class="radar-time-label" id="radarTimeLabelSolo">—</span>
+                </div>
+              </div>
+            </div>
+            <div id="radarMapSolo" style="width:100%;height:calc(100vh - 200px);background:#e0f2fe;min-height:500px"></div>
+            <div class="radar-timeline" id="radarTimelineSolo"></div>
+            <div class="radar-legend">
+              <span class="legend-label">Light</span>
+              <div class="legend-bar"></div>
+              <span class="legend-label">Heavy</span>
+            </div>
+          </section>
+        </div>
+      </div>
+
     </div><!-- end contentGrid -->
   </main>
+  </div><!-- end page-shell -->
 
   <!-- ═══ MODALS ═══ -->
   <div class="modal-backdrop" id="modalBackdrop"></div>

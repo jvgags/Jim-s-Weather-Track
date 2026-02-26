@@ -449,7 +449,7 @@ body {
   min-width: 80px;
 }
 #radarMap {
-  width: 100%; height: 400px;
+  width: 100%; height: 520px;
   background: #e0f2fe;
 }
 .radar-timeline {
@@ -645,7 +645,7 @@ body {
   .day-row { grid-template-columns: 90px 36px 1fr 60px; gap: 8px; padding: 10px 14px; }
   .extras-row { grid-template-columns: 1fr 1fr; }
   .dashboard { padding: 14px 12px 40px; }
-  #radarMap { height: 280px; }
+  #radarMap { height: 380px; }
 }
 
 /* ===== LEAFLET OVERRIDES ===== */
@@ -1394,4 +1394,177 @@ body.theme-dark .day-half.night { background: color-mix(in srgb, #0a1628 80%, va
     padding: 9px 14px;
   }
   .hour-expand { grid-template-columns: repeat(2, 1fr); padding: 12px 14px; }
+}
+
+
+/* ═══════════════════════════════════════
+   HAMBURGER + SIDENAV
+   ═══════════════════════════════════════ */
+
+/* Hamburger button */
+.hamburger-btn {
+  display: flex; flex-direction: column; justify-content: center; gap: 5px;
+  background: none; border: none; cursor: pointer;
+  padding: 6px; margin-right: 4px;
+  border-radius: 8px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.hamburger-btn:hover { background: var(--sky-mid); }
+.hamburger-btn span {
+  display: block; width: 20px; height: 2px;
+  background: var(--text-secondary);
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+  transform-origin: center;
+}
+/* Animate to X when open */
+.hamburger-btn.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger-btn.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.hamburger-btn.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* Sidenav */
+.sidenav {
+  position: fixed;
+  top: var(--header-h, 56px); left: 0; bottom: 0;
+  width: 220px;
+  background: var(--card-bg);
+  border-right: 1px solid var(--card-border);
+  box-shadow: 4px 0 24px rgba(15,23,42,0.08);
+  z-index: 300;
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.sidenav.open { transform: translateX(0); }
+
+.sidenav-inner { padding: 12px 0; height: 100%; overflow-y: auto; }
+
+.sidenav-menu { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 14px;
+  border: none; border-radius: 10px;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s, color 0.14s;
+  width: 100%;
+}
+.nav-item:hover { background: var(--sky); color: var(--text-primary); }
+.nav-item.active {
+  background: var(--sky-mid);
+  color: var(--blue);
+  font-weight: 600;
+}
+.nav-item svg { flex-shrink: 0; opacity: 0.7; }
+.nav-item.active svg { opacity: 1; }
+
+/* Overlay behind sidenav on mobile */
+.sidenav-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.3);
+  z-index: 299;
+}
+.sidenav-overlay.open { display: block; }
+
+/* Page shell — shifts right when sidenav is open on desktop */
+.page-shell {
+  transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.page-shell.nav-open { margin-left: 220px; }
+
+/* View panels */
+.view-panel { width: 100%; }
+.view-single { max-width: 900px; margin: 0 auto; padding: 0 0 40px; }
+
+/* Today view — same as home but hero + extras only, no hourly/tenday/radar */
+.today-grid { display: flex; flex-direction: column; gap: var(--gap); }
+
+/* ═══════════════════════════════════════
+   MONTHLY VIEW
+   ═══════════════════════════════════════ */
+.monthly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+}
+.monthly-dow {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--card-border);
+}
+.monthly-cell {
+  border-right: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--card-border);
+  padding: 8px 10px;
+  min-height: 80px;
+  cursor: default;
+  transition: background 0.12s;
+}
+.monthly-cell:nth-child(7n) { border-right: none; }
+.monthly-cell.empty { background: var(--surface); opacity: 0.4; }
+.monthly-cell.today { background: color-mix(in srgb, var(--sky-mid) 60%, var(--card-bg)); }
+.monthly-cell.today .mc-day { color: var(--blue); font-weight: 700; }
+.monthly-cell:hover:not(.empty) { background: var(--sky); }
+.mc-day {
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.mc-icon { font-size: 1.3rem; line-height: 1; margin-bottom: 3px; }
+.mc-high { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
+.mc-low  { font-size: 0.75rem; color: var(--text-muted); }
+.mc-precip { font-size: 0.68rem; color: var(--blue); margin-top: 2px; }
+.monthly-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px 12px;
+}
+.monthly-nav h3 {
+  font-family: var(--font-display);
+  font-size: 1.1rem; font-weight: 400;
+  color: var(--text-primary);
+}
+.monthly-nav-btn {
+  background: var(--surface); border: 1.5px solid var(--card-border);
+  border-radius: 8px; width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-secondary);
+  transition: all 0.14s; font-size: 1rem;
+}
+.monthly-nav-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+@media (max-width: 768px) {
+  .page-shell.nav-open { margin-left: 0; }
+  .sidenav-overlay { display: none; }
+  .sidenav-overlay.open { display: block; }
+  .monthly-cell { min-height: 60px; padding: 6px 6px; }
+  .mc-icon { font-size: 1rem; }
+}
+@media (max-width: 480px) {
+  .monthly-cell { min-height: 48px; padding: 4px; }
+  .mc-high, .mc-low, .mc-precip { display: none; }
+}
+
+/* Logo stack — app name above hamburger */
+.logo-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.logo-stack .hamburger-btn {
+  margin-right: 0;
+  margin-left: 2px;
 }
