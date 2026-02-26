@@ -1195,7 +1195,7 @@ body.theme-dark .day-half.night { background: color-mix(in srgb, #0a1628 80%, va
 /* Column headers */
 .hourly-col-headers {
   display: grid;
-  grid-template-columns: 90px 54px 1fr 100px 80px 90px 70px 28px;
+  grid-template-columns: 110px 54px 1fr 100px 80px 90px 70px 28px;
   gap: 0;
   padding: 8px 20px 6px;
   font-size: 0.68rem;
@@ -1250,7 +1250,7 @@ body.theme-dark .day-half.night { background: color-mix(in srgb, #0a1628 80%, va
 /* The summary row */
 .hour-row.expandable {
   display: grid;
-  grid-template-columns: 90px 54px 1fr 100px 80px 90px 70px 28px;
+  grid-template-columns: 110px 54px 1fr 100px 80px 90px 70px 28px;
   align-items: center;
   gap: 0;
   padding: 10px 20px;
@@ -1273,10 +1273,12 @@ body.theme-dark .day-half.night { background: color-mix(in srgb, #0a1628 80%, va
   background: var(--blue);
   color: #fff;
   border-radius: 100px;
-  padding: 2px 10px;
-  font-size: 0.72rem;
+  padding: 2px 8px;
+  font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  max-width: fit-content;
 }
 
 /* Temp cell */
