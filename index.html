@@ -67,13 +67,11 @@
       <!-- API Keys -->
       <div class="settings-section">
         <div class="settings-section-title">🔑 API Keys</div>
-        <div class="settings-field">
-          <label for="s_weatherKey">WeatherAPI.com Key</label>
+        <div class="settings-field" style="opacity:0.5;pointer-events:none">
+          <label for="s_weatherKey">WeatherAPI.com Key <span style="font-weight:400;font-size:0.7rem;color:var(--green)">(not required — using Open-Meteo)</span></label>
           <div class="key-input-wrap">
-            <input type="password" id="s_weatherKey" placeholder="Paste your WeatherAPI key…" autocomplete="off" />
-            <button class="key-toggle" data-target="s_weatherKey">👁</button>
+            <input type="password" id="s_weatherKey" placeholder="Not required" autocomplete="off" disabled />
           </div>
-          <span class="settings-hint">Get free key → <a href="https://www.weatherapi.com" target="_blank">weatherapi.com</a></span>
         </div>
         <div class="settings-field">
           <label for="s_tomorrowKey">Tomorrow.io Key</label>

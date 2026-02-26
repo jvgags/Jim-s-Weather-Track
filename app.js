@@ -1,14 +1,16 @@
 /* =========================================================
    JIM'S WEATHER TRACK — app.js
-   WeatherAPI.com (forecast) + Tomorrow.io (radar map tiles)
+   Open-Meteo (forecast, free, no key) + Tomorrow.io (radar)
    ========================================================= */
 
-// ─── CONFIG (overridden by localStorage settings) ─────────
-const WEATHERAPI_BASE = 'https://api.weatherapi.com/v1';
+// ─── CONFIG ───────────────────────────────────────────────
+const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1/forecast';
+const GEOCODE_BASE    = 'https://geocoding-api.open-meteo.com/v1/search';
 
-// Keys & prefs loaded from localStorage (set via Settings panel)
-let API_KEY      = localStorage.getItem('jwt_weatherapi_key') || 'YOUR_WEATHERAPI_KEY';
-let TOMORROW_KEY = localStorage.getItem('jwt_tomorrow_key')   || 'YOUR_TOMORROW_IO_KEY';
+// Tomorrow.io key for radar tiles (loaded from localStorage)
+let TOMORROW_KEY = localStorage.getItem('jwt_tomorrow_key') || 'YOUR_TOMORROW_IO_KEY';
+// API_KEY kept for backwards compat with settings panel save logic
+let API_KEY = localStorage.getItem('jwt_weatherapi_key') || '';
 
 // ─── STATE ────────────────────────────────
 let state = {
@@ -117,24 +119,24 @@ function doSearch() {
   fetchWeatherByCity(q);
 }
 
-// ─── SEARCH AUTOCOMPLETE ──────────────────
+// ─── SEARCH AUTOCOMPLETE (Open-Meteo geocoding) ──────────
 async function fetchSuggestions() {
   const q = $('citySearch').value.trim();
   if (q.length < 2) { $('searchSuggestions').innerHTML = ''; return; }
   try {
-    const res = await fetch(`${WEATHERAPI_BASE}/search.json?key=${API_KEY}&q=${encodeURIComponent(q)}`);
+    const res  = await fetch(`${GEOCODE_BASE}?name=${encodeURIComponent(q)}&count=5&language=en&format=json`);
     const data = await res.json();
-    const box = $('searchSuggestions');
+    const box  = $('searchSuggestions');
     box.innerHTML = '';
-    (data || []).slice(0, 5).forEach(item => {
+    ((data && data.results) || []).forEach(item => {
       const div = document.createElement('div');
       div.className = 'suggestion-item';
-      div.textContent = `${item.name}, ${item.region}, ${item.country}`;
+      div.textContent = [item.name, item.admin1, item.country].filter(Boolean).join(', ');
       div.addEventListener('click', () => {
         $('citySearch').value = item.name;
         box.innerHTML = '';
         showLoading();
-        fetchWeatherByLatLon(item.lat, item.lon);
+        fetchWeatherByLatLon(item.latitude, item.longitude, item.name, item.admin1, item.country);
       });
       box.appendChild(div);
     });
@@ -142,27 +144,78 @@ async function fetchSuggestions() {
 }
 
 // ─── FETCH WEATHER ────────────────────────
-async function fetchWeatherByLatLon(lat, lon) {
+async function fetchWeatherByLatLon(lat, lon, name, region, country) {
   state.lat = lat; state.lon = lon;
-  await fetchWeatherData(`${lat},${lon}`);
+  if (name) state.locationName = [name, region, country].filter(Boolean).join(', ');
+  await fetchWeatherData(lat, lon);
 }
 
 async function fetchWeatherByCity(city) {
-  await fetchWeatherData(city);
+  // Geocode first, then fetch weather
+  try {
+    const res  = await fetch(`${GEOCODE_BASE}?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+    const data = await res.json();
+    const r    = data.results && data.results[0];
+    if (!r) throw new Error('Location not found: ' + city);
+    state.locationName = [r.name, r.admin1, r.country].filter(Boolean).join(', ');
+    await fetchWeatherByLatLon(r.latitude, r.longitude, r.name, r.admin1, r.country);
+  } catch (err) {
+    console.error(err);
+    showError('Location not found. Try a different city name.');
+  }
 }
 
-async function fetchWeatherData(query) {
+async function fetchWeatherData(lat, lon) {
   try {
-    const [forecastRes, aqiRes] = await Promise.all([
-      fetch(`${WEATHERAPI_BASE}/forecast.json?key=${API_KEY}&q=${encodeURIComponent(query)}&days=10&aqi=yes&alerts=no`),
-      Promise.resolve(null)
-    ]);
+    // Open-Meteo: free, no key, NWS/GFS model for USA
+    const params = new URLSearchParams({
+      latitude:  lat,
+      longitude: lon,
+      timezone:  'auto',
+      forecast_days: 10,
+      current: [
+        'temperature_2m','relative_humidity_2m','apparent_temperature',
+        'is_day','precipitation','weather_code','cloud_cover',
+        'wind_speed_10m','wind_direction_10m','wind_gusts_10m',
+        'surface_pressure','visibility','dew_point_2m','uv_index',
+      ].join(','),
+      hourly: [
+        'temperature_2m','apparent_temperature','relative_humidity_2m',
+        'dew_point_2m','precipitation_probability','precipitation',
+        'weather_code','cloud_cover','wind_speed_10m','wind_direction_10m',
+        'wind_gusts_10m','visibility','uv_index','is_day','surface_pressure',
+      ].join(','),
+      daily: [
+        'weather_code','temperature_2m_max','temperature_2m_min',
+        'apparent_temperature_max','apparent_temperature_min',
+        'sunrise','sunset','uv_index_max','precipitation_sum',
+        'precipitation_probability_max','wind_speed_10m_max',
+        'wind_gusts_10m_max','wind_direction_10m_dominant',
+        'precipitation_hours','snowfall_sum','rain_sum',
+        'showers_sum','daylight_duration','sunshine_duration',
+      ].join(','),
+      wind_speed_unit: 'mph',
+      temperature_unit: 'fahrenheit',
+      precipitation_unit: 'inch',
+    });
 
-    if (!forecastRes.ok) throw new Error(`API error ${forecastRes.status}`);
-    const data = await forecastRes.json();
+    const res  = await fetch(`${OPEN_METEO_BASE}?${params}`);
+    if (!res.ok) throw new Error('Open-Meteo error ' + res.status);
+    const raw  = await res.json();
 
-    state.lat = data.location.lat;
-    state.lon = data.location.lon;
+    // Reverse geocode for location name if not already set
+    if (!state.locationName) {
+      try {
+        const gr = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+        const gd = await gr.json();
+        const a  = gd.address || {};
+        state.locationName = [a.city || a.town || a.village || a.hamlet, a.state, a.country_code?.toUpperCase()].filter(Boolean).join(', ');
+      } catch(e) { state.locationName = `${lat.toFixed(2)}, ${lon.toFixed(2)}`; }
+    }
+
+    // Normalise into our internal data shape
+    const data = normaliseOpenMeteo(raw, lat, lon);
+    state.lat = lat; state.lon = lon;
     state.weatherData = data;
 
     renderAll(data);
@@ -170,10 +223,184 @@ async function fetchWeatherData(query) {
     initRadarMap();
   } catch (err) {
     console.error(err);
-    showError(err.message.includes('403') || err.message.includes('401')
-      ? 'Invalid API key. Please add your WeatherAPI.com key in app.js.'
-      : 'Failed to fetch weather data. Please check your connection or API key.');
+    showError('Failed to fetch weather data. Please check your connection.');
   }
+}
+
+// ─── NORMALISE Open-Meteo → internal shape ─────────────────
+// We convert Open-Meteo's flat arrays into structured objects
+// that closely mirror what the render functions already expect.
+function normaliseOpenMeteo(raw, lat, lon) {
+  const tz       = raw.timezone;
+  const cur      = raw.current;
+  const hourly   = raw.hourly;
+  const daily    = raw.daily;
+  const nowLocal = new Date(cur.time); // local time per API timezone
+
+  // Helper: celsius stored natively in °F thanks to temperature_unit=fahrenheit
+  const cToF = v => v; // already in °F
+  const mph   = v => v; // already in mph
+
+  // Wind direction degrees → cardinal
+  function degToDir(deg) {
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    return dirs[Math.round(deg / 22.5) % 16];
+  }
+
+  // Moon phase from illumination fraction (0–1) using day of month heuristic
+  function moonPhaseStr() {
+    const synodic = 29.53058867;
+    const known   = new Date('2000-01-06T18:14:00Z'); // known new moon
+    const diff    = (Date.now() - known.getTime()) / 86400000;
+    const phase   = (diff % synodic) / synodic;
+    if (phase < 0.03 || phase > 0.97) return 'New Moon';
+    if (phase < 0.22) return 'Waxing Crescent';
+    if (phase < 0.28) return 'First Quarter';
+    if (phase < 0.47) return 'Waxing Gibbous';
+    if (phase < 0.53) return 'Full Moon';
+    if (phase < 0.72) return 'Waning Gibbous';
+    if (phase < 0.78) return 'Last Quarter';
+    return 'Waning Crescent';
+  }
+
+  // Format time string "HH:MM" to "6:41 AM"
+  function fmtTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  // Build hourly array (Open-Meteo gives 240 entries; we keep 48)
+  const hours = hourly.time.map((t, i) => ({
+    time:        t.replace('T', ' '),
+    time_epoch:  new Date(t).getTime() / 1000,
+    is_day:      hourly.is_day[i],
+    temp_f:      hourly.temperature_2m[i],
+    temp_c:      (hourly.temperature_2m[i] - 32) * 5/9,
+    feelslike_f: hourly.apparent_temperature[i],
+    feelslike_c: (hourly.apparent_temperature[i] - 32) * 5/9,
+    humidity:    hourly.relative_humidity_2m[i],
+    dewpoint_f:  hourly.dew_point_2m[i],
+    dewpoint_c:  (hourly.dew_point_2m[i] - 32) * 5/9,
+    chance_of_rain:  hourly.precipitation_probability[i] || 0,
+    chance_of_snow:  0,
+    precip_in:   hourly.precipitation[i] || 0,
+    precip_mm:   (hourly.precipitation[i] || 0) * 25.4,
+    cloud:       hourly.cloud_cover[i],
+    wind_mph:    hourly.wind_speed_10m[i],
+    wind_kph:    hourly.wind_speed_10m[i] * 1.60934,
+    wind_dir:    degToDir(hourly.wind_direction_10m[i]),
+    gust_mph:    hourly.wind_gusts_10m[i],
+    gust_kph:    hourly.wind_gusts_10m[i] * 1.60934,
+    vis_miles:   ((hourly.visibility[i] || 0) / 1609).toFixed(1),
+    vis_km:      ((hourly.visibility[i] || 0) / 1000).toFixed(1),
+    uv:          hourly.uv_index[i] || 0,
+    pressure_mb: hourly.surface_pressure[i],
+    condition: {
+      code: hourly.weather_code[i],
+      text: wmoText(hourly.weather_code[i]),
+    },
+  }));
+
+  // Build 10-day forecast array
+  const forecastday = daily.time.map((date, i) => {
+    // For each day, find matching hourly slots
+    const dayHours = hours.filter(h => h.time.startsWith(date));
+    const sunriseStr = fmtTime(daily.sunrise[i]);
+    const sunsetStr  = fmtTime(daily.sunset[i]);
+
+    return {
+      date,
+      hour: dayHours,
+      astro: {
+        sunrise:    sunriseStr,
+        sunset:     sunsetStr,
+        moonrise:   '—',
+        moonset:    '—',
+        moon_phase: moonPhaseStr(),
+      },
+      day: {
+        maxtemp_f:            daily.temperature_2m_max[i],
+        maxtemp_c:            (daily.temperature_2m_max[i] - 32) * 5/9,
+        mintemp_f:            daily.temperature_2m_min[i],
+        mintemp_c:            (daily.temperature_2m_min[i] - 32) * 5/9,
+        avghumidity:          Math.round(dayHours.reduce((s,h) => s + h.humidity, 0) / (dayHours.length || 1)),
+        daily_chance_of_rain: daily.precipitation_probability_max[i] || 0,
+        daily_chance_of_snow: 0,
+        totalprecip_in:       (daily.precipitation_sum[i] || 0).toFixed(2),
+        totalprecip_mm:       ((daily.precipitation_sum[i] || 0) * 25.4).toFixed(1),
+        totalsnow_cm:         (daily.snowfall_sum[i] || 0) * 2.54,
+        avgvis_miles:         dayHours.length ? (dayHours.reduce((s,h) => s + parseFloat(h.vis_miles), 0) / dayHours.length).toFixed(1) : '—',
+        avgvis_km:            dayHours.length ? (dayHours.reduce((s,h) => s + parseFloat(h.vis_km), 0) / dayHours.length).toFixed(1) : '—',
+        maxwind_mph:          daily.wind_speed_10m_max[i],
+        maxwind_kph:          daily.wind_speed_10m_max[i] * 1.60934,
+        uv:                   daily.uv_index_max[i] || 0,
+        condition: {
+          code: daily.weather_code[i],
+          text: wmoText(daily.weather_code[i]),
+        },
+      },
+    };
+  });
+
+  // Build current object
+  const current = {
+    temp_f:       cur.temperature_2m,
+    temp_c:       (cur.temperature_2m - 32) * 5/9,
+    feelslike_f:  cur.apparent_temperature,
+    feelslike_c:  (cur.apparent_temperature - 32) * 5/9,
+    humidity:     cur.relative_humidity_2m,
+    dewpoint_f:   cur.dew_point_2m,
+    dewpoint_c:   (cur.dew_point_2m - 32) * 5/9,
+    wind_mph:     cur.wind_speed_10m,
+    wind_kph:     cur.wind_speed_10m * 1.60934,
+    wind_dir:     degToDir(cur.wind_direction_10m),
+    wind_degree:  cur.wind_direction_10m,
+    gust_mph:     cur.wind_gusts_10m,
+    gust_kph:     cur.wind_gusts_10m * 1.60934,
+    vis_miles:    ((cur.visibility || 0) / 1609).toFixed(1),
+    vis_km:       ((cur.visibility || 0) / 1000).toFixed(1),
+    pressure_mb:  cur.surface_pressure,
+    is_day:       cur.is_day,
+    uv:           cur.uv_index || 0,
+    cloud:        cur.cloud_cover,
+    air_quality:  null, // Open-Meteo AQI requires separate endpoint; show N/A
+    condition: {
+      code: cur.weather_code,
+      text: wmoText(cur.weather_code),
+    },
+  };
+
+  return {
+    location: {
+      name:      state.locationName.split(',')[0] || 'My Location',
+      region:    state.locationName.split(',').slice(1,-1).join(',').trim(),
+      country:   state.locationName.split(',').pop()?.trim() || '',
+      lat, lon,
+      localtime: cur.time.replace('T', ' '),
+      tz_id:     tz,
+    },
+    current,
+    forecast: { forecastday },
+  };
+}
+
+// ─── WMO weather code → text & emoji ─────────────────────
+// https://open-meteo.com/en/docs/weathercode
+function wmoText(code) {
+  const map = {
+    0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+    45:'Foggy', 48:'Icy fog',
+    51:'Light drizzle', 53:'Moderate drizzle', 55:'Dense drizzle',
+    56:'Freezing drizzle', 57:'Heavy freezing drizzle',
+    61:'Slight rain', 63:'Moderate rain', 65:'Heavy rain',
+    66:'Light freezing rain', 67:'Heavy freezing rain',
+    71:'Slight snow', 73:'Moderate snow', 75:'Heavy snow', 77:'Snow grains',
+    80:'Slight showers', 81:'Moderate showers', 82:'Violent showers',
+    85:'Slight snow showers', 86:'Heavy snow showers',
+    95:'Thunderstorm', 96:'Thunderstorm w/ hail', 99:'Thunderstorm w/ heavy hail',
+  };
+  return map[code] || 'Unknown';
 }
 
 // ─── RENDER ALL ───────────────────────────
@@ -368,16 +595,43 @@ function buildTenDayList(data, listEl) {
   const days = data.forecast.forecastday;
   listEl.innerHTML = '';
 
-  const allLows  = days.map(d => state.unit === 'F' ? d.day.mintemp_f : d.day.mintemp_c);
-  const allHighs = days.map(d => state.unit === 'F' ? d.day.maxtemp_f : d.day.maxtemp_c);
+  // For today, calculate high/low from remaining future hours only
+  // to avoid midnight temps inflating today's "high"
+  const localtimeStr   = data.location.localtime;
+  const [datePart, timePart] = localtimeStr.split(' ');
+  const currentHour    = parseInt((timePart || '00:00').split(':')[0]);
+  const currentHourStr = datePart + ' ' + String(currentHour).padStart(2,'0') + ':00';
+
+  function todayRemainingHighLow(day) {
+    const futureHours = day.hour.filter(h => h.time >= currentHourStr);
+    if (!futureHours.length) return null;
+    const temps = futureHours.map(h => state.unit === 'F' ? h.temp_f : h.temp_c);
+    return { high: Math.max(...temps), low: Math.min(...temps) };
+  }
+
+  const allLows  = days.map((d, i) => {
+    if (i === 0) { const r = todayRemainingHighLow(d); if (r) return r.low; }
+    return state.unit === 'F' ? d.day.mintemp_f : d.day.mintemp_c;
+  });
+  const allHighs = days.map((d, i) => {
+    if (i === 0) { const r = todayRemainingHighLow(d); if (r) return r.high; }
+    return state.unit === 'F' ? d.day.maxtemp_f : d.day.maxtemp_c;
+  });
   const rangeMin = Math.min(...allLows);
   const rangeMax = Math.max(...allHighs);
 
   days.forEach((d, i) => {
     const date    = new Date(d.date + 'T12:00:00');
     const isToday = i === 0;
-    const low     = Math.round(state.unit === 'F' ? d.day.mintemp_f : d.day.mintemp_c);
-    const high    = Math.round(state.unit === 'F' ? d.day.maxtemp_f : d.day.maxtemp_c);
+    let low, high;
+    if (isToday) {
+      const r = todayRemainingHighLow(d);
+      low  = Math.round(r ? r.low  : (state.unit === 'F' ? d.day.mintemp_f : d.day.mintemp_c));
+      high = Math.round(r ? r.high : (state.unit === 'F' ? d.day.maxtemp_f : d.day.maxtemp_c));
+    } else {
+      low  = Math.round(state.unit === 'F' ? d.day.mintemp_f : d.day.mintemp_c);
+      high = Math.round(state.unit === 'F' ? d.day.maxtemp_f : d.day.maxtemp_c);
+    }
     const pct_start = ((low - rangeMin) / (rangeMax - rangeMin) * 100).toFixed(1);
     const pct_width = (((high - low)    / (rangeMax - rangeMin)) * 100).toFixed(1);
     const rain    = d.day.daily_chance_of_rain;
@@ -567,7 +821,7 @@ async function initRadarMap() {
     // Start on "Now" frame (first non-past frame)
     state.radarFrameIndex = state.radarPastCount;
     showRadarFrame(state.radarFrameIndex);
-    startRadarAnimation();
+    stopRadarAnimation(); // start paused on Now — user clicks Play to animate
 
   } catch (e) {
     console.error('Radar error:', e);
@@ -632,8 +886,10 @@ function radarFrameLabel(frame) {
   const now = Date.now() / 1000;
   const diffMin = Math.round((frame.time - now) / 60);
   if (Math.abs(diffMin) <= 6) return 'Now';
-  if (diffMin > 0) return '+' + diffMin + ' min';
-  return Math.abs(diffMin) + ' min ago';
+  const t = new Date(frame.time * 1000);
+  const timeStr = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (diffMin > 0) return timeStr;
+  return timeStr;
 }
 
 function showRadarFrame(index) {
@@ -756,20 +1012,20 @@ function moonEmoji(phase) {
   return map[phase] || '🌙';
 }
 
-// Weather condition code → emoji
-// WeatherAPI condition codes: https://www.weatherapi.com/docs/weather_conditions.json
+// WMO weather code → emoji
 function conditionEmoji(code, isDay) {
-  if (!code) return '🌡️';
   const day = isDay !== 0;
-  if (code === 1000) return day ? '☀️' : '🌙';
-  if (code === 1003) return day ? '🌤️' : '🌤️';
-  if (code === 1006 || code === 1009) return '☁️';
-  if ([1030,1135,1147].includes(code)) return '🌫️';
-  if ([1063,1150,1153,1180,1183].includes(code)) return '🌦️';
-  if ([1186,1189,1192,1195,1198,1201,1240,1243,1246].includes(code)) return '🌧️';
-  if ([1066,1069,1072,1204,1207,1210,1213,1216,1219,1222,1225,1237,1249,1252,1255,1258,1261,1264].includes(code)) return '🌨️';
-  if ([1087,1273,1276,1279,1282].includes(code)) return '⛈️';
-  if (code === 1114 || code === 1117) return '🌬️';
+  if (code === 0)            return day ? '☀️' : '🌙';
+  if (code === 1)            return day ? '🌤️' : '🌤️';
+  if (code === 2)            return day ? '⛅' : '⛅';
+  if (code === 3)            return '☁️';
+  if (code === 45 || code === 48) return '🌫️';
+  if (code >= 51 && code <= 57)   return '🌦️';
+  if (code >= 61 && code <= 67)   return '🌧️';
+  if (code >= 71 && code <= 77)   return '🌨️';
+  if (code >= 80 && code <= 82)   return '🌦️';
+  if (code === 85 || code === 86) return '🌨️';
+  if (code >= 95)            return '⛈️';
   return '🌡️';
 }
 
@@ -899,7 +1155,7 @@ function setupSettings() {
     const activeUnit   = document.querySelector('.theme-btn[data-unit].active');
 
     // Save keys
-    if (weatherKey)  { localStorage.setItem('jwt_weatherapi_key', weatherKey);  API_KEY = weatherKey; }
+    if (weatherKey)  { localStorage.setItem('jwt_weatherapi_key', weatherKey);  API_KEY = weatherKey; } // kept for future use
     if (tomorrowKey) { localStorage.setItem('jwt_tomorrow_key',   tomorrowKey); TOMORROW_KEY = tomorrowKey; }
 
     // Save city (clears saved GPS if city is typed)
