@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jim's Weather Track</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS: try jsdelivr first, fallback to cdnjs -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+  <script>
+    if (typeof L === "undefined") {
+      var s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+      document.head.appendChild(s);
+    }
+  </script>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="14" cy="14" r="13" stroke="#2563EB" stroke-width="2"/>
+          <path d="M7 18 Q10 10 14 13 Q18 16 21 10" stroke="#2563EB" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="14" cy="8" r="3" fill="#F59E0B"/>
+        </svg>
+        <span class="logo-text">Jim's Weather Track</span>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="citySearch" placeholder="Search city..." autocomplete="off" />
+        <button id="searchBtn">Go</button>
+      </div>
+      <div id="searchSuggestions" class="suggestions"></div>
+    </div>
+    <div class="header-right">
+      <button class="unit-toggle" id="unitToggle">°F / °C</button>
+      <button class="locate-btn" id="locateBtn" title="Use my location">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9" stroke-dasharray="2 3"/></svg>
+      </button>
+      <button class="settings-btn" id="settingsBtn" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- SETTINGS PANEL -->
+  <div class="settings-overlay" id="settingsOverlay"></div>
+  <aside class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="settings-close" id="settingsClose">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- API Keys -->
+      <div class="settings-section">
+        <div class="settings-section-title">🔑 API Keys</div>
+        <div class="settings-field">
+          <label for="s_weatherKey">WeatherAPI.com Key</label>
+          <div class="key-input-wrap">
+            <input type="password" id="s_weatherKey" placeholder="Paste your WeatherAPI key…" autocomplete="off" />
+            <button class="key-toggle" data-target="s_weatherKey">👁</button>
+          </div>
+          <span class="settings-hint">Get free key → <a href="https://www.weatherapi.com" target="_blank">weatherapi.com</a></span>
+        </div>
+        <div class="settings-field">
+          <label for="s_tomorrowKey">Tomorrow.io Key</label>
+          <div class="key-input-wrap">
+            <input type="password" id="s_tomorrowKey" placeholder="Paste your Tomorrow.io key…" autocomplete="off" />
+            <button class="key-toggle" data-target="s_tomorrowKey">👁</button>
+          </div>
+          <span class="settings-hint">Get free key → <a href="https://app.tomorrow.io/development/keys" target="_blank">app.tomorrow.io</a></span>
+        </div>
+      </div>
+
+      <!-- Default Location -->
+      <div class="settings-section">
+        <div class="settings-section-title">📍 Default Location</div>
+        <div class="settings-field">
+          <label for="s_defaultCity">City Name</label>
+          <input type="text" id="s_defaultCity" placeholder="e.g. New York, London, Tokyo…" autocomplete="off" />
+          <span class="settings-hint">Leave blank to always use GPS on load</span>
+        </div>
+        <div class="settings-field">
+          <label>Or use current location</label>
+          <button class="settings-action-btn" id="s_saveLocation">📍 Save My Current Location</button>
+          <span class="settings-hint" id="s_locationStatus"></span>
+        </div>
+      </div>
+
+      <!-- Appearance -->
+      <div class="settings-section">
+        <div class="settings-section-title">🎨 Appearance</div>
+        <div class="settings-field">
+          <label>Theme</label>
+          <div class="theme-options">
+            <button class="theme-btn" data-theme="light">☀️ Light</button>
+            <button class="theme-btn" data-theme="dark">🌙 Dark</button>
+            <button class="theme-btn" data-theme="auto">💻 Auto</button>
+          </div>
+        </div>
+        <div class="settings-field">
+          <label>Temperature Unit</label>
+          <div class="theme-options">
+            <button class="theme-btn" data-unit="F">°F Fahrenheit</button>
+            <button class="theme-btn" data-unit="C">°C Celsius</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Save Button -->
+      <div class="settings-footer">
+        <button class="settings-save-btn" id="settingsSave">Save &amp; Apply</button>
+        <span class="settings-saved-msg" id="settingsSavedMsg"></span>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dashboard" id="dashboard">
+
+    <!-- Loading State -->
+    <div class="loading-screen" id="loadingScreen">
+      <div class="loader-ring"></div>
+      <p>Fetching your weather…</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="error-screen" id="errorScreen" style="display:none">
+      <div class="error-icon">⚠</div>
+      <p id="errorMsg">Something went wrong. Please try again.</p>
+      <button onclick="initWeather()">Retry</button>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content-grid" id="contentGrid" style="display:none">
+
+      <!-- ROW 1: Hero Current Weather -->
+      <section class="card hero-card">
+        <div class="hero-top">
+          <div class="hero-location">
+            <h1 id="heroCity">—</h1>
+            <span id="heroRegion" class="hero-region"></span>
+            <span id="heroDate" class="hero-date"></span>
+          </div>
+          <div class="hero-temp-block">
+            <div class="hero-icon" id="heroIcon"></div>
+            <div class="hero-temp" id="heroTemp">—</div>
+            <div class="hero-condition" id="heroCondition">—</div>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-item">
+            <span class="stat-label">Feels Like</span>
+            <span class="stat-val" id="feelsLike">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Humidity</span>
+            <span class="stat-val" id="humidity">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Wind</span>
+            <span class="stat-val" id="wind">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">UV Index</span>
+            <span class="stat-val" id="uvIndex">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Visibility</span>
+            <span class="stat-val" id="visibility">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Pressure</span>
+            <span class="stat-val" id="pressure">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Sunrise</span>
+            <span class="stat-val" id="sunrise">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Sunset</span>
+            <span class="stat-val" id="sunset">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROW 2: Hourly Forecast -->
+      <section class="card hourly-card">
+        <div class="card-header">
+          <h2>48-Hour Forecast</h2>
+          <div class="card-header-actions">
+            <div class="tab-pills">
+              <button class="pill active" data-hours="24">24h</button>
+              <button class="pill" data-hours="48">48h</button>
+            </div>
+            <button class="expand-btn" data-modal="hourlyModal" title="Expand">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="hourly-col-headers">
+          <span></span><span></span><span>Condition</span>
+          <span>Rain</span><span>Humidity</span><span>Wind</span><span>Precip</span><span></span>
+        </div>
+        <div class="hourly-list" id="hourlyScroll">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+      <!-- ROW 3: 10-Day Forecast -->
+      <section class="card tenday-card">
+        <div class="card-header">
+          <h2>10-Day Forecast</h2>
+          <button class="expand-btn" data-modal="tendayModal" title="Expand">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </button>
+        </div>
+        <div class="tenday-list" id="tendayList">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+      <!-- ROW 4: Radar Map -->
+      <section class="card radar-card">
+        <div class="card-header">
+          <h2>Live Radar</h2>
+          <div class="card-header-actions">
+            <div class="radar-controls">
+            <button id="radarPlay" class="radar-btn active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Play
+            </button>
+            <button id="radarPause" class="radar-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+              Pause
+            </button>
+              <span class="radar-time-label" id="radarTimeLabel">—</span>
+            </div>
+            <button class="expand-btn" data-modal="radarModal" title="Expand">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="radarMap"></div>
+        <div class="radar-timeline" id="radarTimeline">
+          <!-- Frame dots populated by JS -->
+        </div>
+        <div class="radar-legend">
+          <span class="legend-label">Light</span>
+          <div class="legend-bar"></div>
+          <span class="legend-label">Heavy</span>
+        </div>
+      </section>
+
+      <!-- ROW 5: Extra Cards -->
+      <div class="extras-row">
+        <!-- Air Quality -->
+        <section class="card mini-card air-card">
+          <div class="card-header"><h2>Air Quality</h2></div>
+          <div class="aqi-display">
+            <div class="aqi-number" id="aqiNumber">—</div>
+            <div class="aqi-label" id="aqiLabel">—</div>
+          </div>
+          <div class="aqi-bar-wrap">
+            <div class="aqi-bar">
+              <div class="aqi-fill" id="aqiFill"></div>
+              <div class="aqi-marker" id="aqiMarker"></div>
+            </div>
+            <div class="aqi-scale">
+              <span>Good</span><span>Moderate</span><span>Poor</span><span>Hazardous</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Wind Card -->
+        <section class="card mini-card wind-card">
+          <div class="card-header"><h2>Wind</h2></div>
+          <div class="wind-compass-wrap">
+            <div class="compass" id="compass">
+              <div class="compass-rose"></div>
+              <div class="compass-needle" id="compassNeedle"></div>
+              <div class="compass-center"></div>
+            </div>
+            <div class="wind-details">
+              <div class="wind-stat"><span>Speed</span><strong id="windSpeed">—</strong></div>
+              <div class="wind-stat"><span>Gust</span><strong id="windGust">—</strong></div>
+              <div class="wind-stat"><span>Dir</span><strong id="windDir">—</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Precipitation Card -->
+        <section class="card mini-card precip-card">
+          <div class="card-header"><h2>Precipitation</h2></div>
+          <div class="precip-content">
+            <div class="precip-stat"><span>Today Total</span><strong id="precipToday">—</strong></div>
+            <div class="precip-stat"><span>Chance</span><strong id="precipChance">—</strong></div>
+            <div class="precip-stat"><span>Snow Depth</span><strong id="snowDepth">—</strong></div>
+            <div class="precip-stat"><span>Dew Point</span><strong id="dewPoint">—</strong></div>
+          </div>
+        </section>
+
+        <!-- Moon Card -->
+        <section class="card mini-card moon-card">
+          <div class="card-header"><h2>Moon Phase</h2></div>
+          <div class="moon-display">
+            <div class="moon-icon" id="moonIcon">🌙</div>
+            <div class="moon-info">
+              <div class="moon-phase-name" id="moonPhaseName">—</div>
+              <div class="moon-stat"><span>Moonrise</span><strong id="moonrise">—</strong></div>
+              <div class="moon-stat"><span>Moonset</span><strong id="moonset">—</strong></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </div><!-- end contentGrid -->
+  </main>
+
+  <!-- ═══ MODALS ═══ -->
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+
+  <!-- Hourly Modal -->
+  <div class="modal" id="hourlyModal">
+    <div class="modal-header">
+      <h2>48-Hour Forecast</h2>
+      <div class="modal-header-actions">
+        <div class="tab-pills">
+          <button class="pill active" data-hours="24" data-modal-pills>24h</button>
+          <button class="pill" data-hours="48" data-modal-pills>48h</button>
+        </div>
+        <button class="modal-close" data-modal="hourlyModal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="hourly-col-headers">
+        <span></span><span></span><span>Condition</span>
+        <span>Rain</span><span>Humidity</span><span>Wind</span><span>Precip</span><span></span>
+      </div>
+      <div class="hourly-list" id="hourlyScrollModal"></div>
+    </div>
+  </div>
+
+  <!-- 10-Day Modal -->
+  <div class="modal" id="tendayModal">
+    <div class="modal-header">
+      <h2>10-Day Forecast</h2>
+      <button class="modal-close" data-modal="tendayModal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="tenday-list" id="tendayListModal"></div>
+    </div>
+  </div>
+
+  <!-- Radar Modal -->
+  <div class="modal modal-radar" id="radarModal">
+    <div class="modal-header">
+      <h2>Live Radar</h2>
+      <div class="modal-header-actions">
+        <div class="radar-controls">
+          <button id="radarPlayModal" class="radar-btn active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Play
+          </button>
+          <button id="radarPauseModal" class="radar-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            Pause
+          </button>
+          <span class="radar-time-label" id="radarTimeLabelModal">—</span>
+        </div>
+        <button class="modal-close" data-modal="radarModal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-body modal-radar-body">
+      <div id="radarMapModal"></div>
+      <div class="radar-timeline" id="radarTimelineModal"></div>
+      <div class="radar-legend">
+        <span class="legend-label">Light</span>
+        <div class="legend-bar"></div>
+        <span class="legend-label">Heavy</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
