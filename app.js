@@ -8,7 +8,21 @@ const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODE_BASE    = 'https://geocoding-api.open-meteo.com/v1/search';
 
 // Tomorrow.io key for radar tiles (loaded from localStorage)
-let TOMORROW_KEY = localStorage.getItem('jwt_tomorrow_key') || 'YOUR_TOMORROW_IO_KEY';
+
+const DEFAULT_KEY = 'XUOJXtyfm0tbFxL247nk2ge52CBOcA9A';
+
+let key = localStorage.getItem('jwt_tomorrow_key');
+
+if (key === null) {
+  // Key does not exist at all → store the default
+  localStorage.setItem('jwt_tomorrow_key', DEFAULT_KEY);
+  key = DEFAULT_KEY;
+}
+
+let TOMORROW_KEY = key;
+
+// let TOMORROW_KEY = localStorage.getItem('jwt_tomorrow_key') || 'XUOJXtyfm0tbFxL247nk2ge52CBOcA9A';
+
 // API_KEY kept for backwards compat with settings panel save logic
 let API_KEY = localStorage.getItem('jwt_weatherapi_key') || '';
 
