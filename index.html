@@ -108,19 +108,17 @@
       <div class="settings-section">
         <div class="settings-section-title">🎨 Appearance</div>
         <div class="settings-field">
-          <label>Theme</label>
-          <div class="theme-options">
-            <button class="theme-btn" data-theme="light">☀️ Light</button>
-            <button class="theme-btn" data-theme="dark">🌙 Dark</button>
-            <button class="theme-btn" data-theme="auto">💻 Auto</button>
-          </div>
-        </div>
-        <div class="settings-field">
           <label>Temperature Unit</label>
           <div class="theme-options">
             <button class="theme-btn" data-unit="F">°F Fahrenheit</button>
             <button class="theme-btn" data-unit="C">°C Celsius</button>
           </div>
+        </div>
+        <div class="settings-field">
+          <label>Theme</label>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">
+            Choose a theme from the <strong style="color:var(--blue)">Themes</strong> page in the menu.
+          </p>
         </div>
       </div>
 
@@ -160,6 +158,11 @@
         <button class="nav-item" data-view="radar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor"/><line x1="12" y1="3" x2="14" y2="7"/></svg>
           <span>Radar</span>
+        </button>
+        <div class="nav-divider"></div>
+        <button class="nav-item" data-view="themes">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18"/><path d="M12 3C9 7 7 9.5 7 12s2 5 5 9"/><path d="M12 3c3 4 5 6.5 5 9s-2 5-5 9"/></svg>
+          <span>Themes</span>
         </button>
       </nav>
     </div>
@@ -418,6 +421,17 @@
             <div class="card-header"><h2>Monthly Overview</h2></div>
             <div id="monthlyGrid" class="monthly-grid"></div>
           </section>
+        </div>
+      </div>
+
+      <!-- VIEW: THEMES -->
+      <div class="view-panel" id="view-themes" style="display:none">
+        <div class="view-single themes-view">
+          <div class="themes-header">
+            <h1>Themes</h1>
+            <p>Choose a look that matches your mood or the weather outside.</p>
+          </div>
+          <div class="themes-grid" id="themesGrid"></div>
         </div>
       </div>
 

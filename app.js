@@ -1050,7 +1050,7 @@ window.addEventListener('resize', debounce(() => {
 
 function loadSettings() {
   // Apply saved theme
-  const theme = localStorage.getItem('jwt_theme') || 'light';
+  const theme = localStorage.getItem('jwt_theme') || 'dark';
   applyTheme(theme);
 
   // Apply saved unit
@@ -1066,14 +1066,19 @@ function loadSettings() {
 
 function applyTheme(theme) {
   const body = document.body;
-  body.classList.remove('theme-dark', 'theme-light');
-  if (theme === 'dark') {
-    body.classList.add('theme-dark');
-  } else if (theme === 'auto') {
+  // Remove all theme classes
+  body.classList.remove(
+    'theme-dark','theme-light','theme-sunset','theme-forest',
+    'theme-storm','theme-aurora','theme-desert','theme-ocean'
+  );
+  if (theme === 'auto') {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (prefersDark) body.classList.add('theme-dark');
+    body.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
+  } else if (theme && theme !== 'auto') {
+    body.classList.add('theme-' + theme);
+  } else {
+    body.classList.add('theme-dark');
   }
-  // Mark the active theme button
   document.querySelectorAll('.theme-btn[data-theme]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === theme);
   });
@@ -1207,7 +1212,7 @@ function populateSettingsForm() {
   const wKey = localStorage.getItem('jwt_weatherapi_key') || '';
   const tKey = localStorage.getItem('jwt_tomorrow_key')   || '';
   const city = localStorage.getItem('jwt_city') || '';
-  const theme = localStorage.getItem('jwt_theme') || 'light';
+  const theme = localStorage.getItem('jwt_theme') || 'dark';
   const unit  = localStorage.getItem('jwt_unit')  || 'F';
   const savedLat = localStorage.getItem('jwt_lat');
   const savedLon = localStorage.getItem('jwt_lon');
@@ -1538,6 +1543,7 @@ function navigateTo(view) {
   if (panel) panel.style.display = '';
 
   // Populate view-specific content
+  if (view === 'themes') { renderThemesPage(); return; }
   if (state.weatherData) {
     if (view === 'today')   renderTodayView(state.weatherData);
     if (view === 'hourly')  renderHourlySolo(state.weatherData);
@@ -1771,3 +1777,175 @@ function destroySoloRadar() {
   if (tl) tl.innerHTML = '';
   if (md) md.innerHTML = '';
 }
+
+// ═══════════════════════════════════════════════════════
+// THEMES PAGE
+// ═══════════════════════════════════════════════════════
+
+const THEMES = [
+  {
+    id: 'dark',
+    name: 'Midnight',
+    desc: 'Deep navy · Electric cyan',
+    accent: '#38bdf8',
+    bg: 'linear-gradient(145deg, #04111f 0%, #071e3d 45%, #0c2d5c 100%)',
+    heroBg: 'linear-gradient(135deg, #071e3d 0%, #0f3d7a 50%, #1a5fa8 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(56,189,248,0.9),transparent)',
+    icon: '⛅', temp: '46°', cond: 'Partly Cloudy',
+    stats: [['Feels','38°'],['Wind','12 mph'],['Humidity','62%'],['UV','Low']],
+  },
+  {
+    id: 'light',
+    name: 'Daylight',
+    desc: 'Crisp white · Vivid blue',
+    accent: '#2563EB',
+    bg: 'linear-gradient(145deg, #dbeafe 0%, #eff6ff 50%, #bfdbfe 100%)',
+    heroBg: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(147,197,253,1),transparent)',
+    icon: '☀️', temp: '72°', cond: 'Sunny',
+    stats: [['Feels','69°'],['Wind','8 mph'],['Humidity','42%'],['UV','High']],
+  },
+  {
+    id: 'auto',
+    name: 'Auto',
+    desc: 'Follows system preference',
+    accent: '#94a3b8',
+    bg: 'linear-gradient(145deg, #0f172a 0%, #1e3a5f 45%, #c8d9f0 100%)',
+    heroBg: 'linear-gradient(135deg, #0f172a 0%, #1e40af 55%, #93c5fd 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(148,163,184,0.9),transparent)',
+    icon: '🌤️', temp: '58°', cond: 'Mostly Clear',
+    stats: [['Feels','54°'],['Wind','6 mph'],['Humidity','52%'],['UV','Med']],
+  },
+  {
+    id: 'sunset',
+    name: 'Sunset',
+    desc: 'Molten orange · Deep crimson',
+    accent: '#fb923c',
+    bg: 'linear-gradient(145deg, #1a0205 0%, #5c1008 40%, #b83010 70%, #e05515 100%)',
+    heroBg: 'linear-gradient(135deg, #5c0a05 0%, #b83010 50%, #f97316 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(253,186,116,1),rgba(244,63,94,0.7),transparent)',
+    icon: '🌅', temp: '61°', cond: 'Clear Evening',
+    stats: [['Feels','57°'],['Wind','5 mph'],['Humidity','38%'],['UV','None']],
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    desc: 'Vivid emerald · Ancient moss',
+    accent: '#22c55e',
+    bg: 'linear-gradient(145deg, #010d04 0%, #053a15 40%, #0d6124 70%, #15803d 100%)',
+    heroBg: 'linear-gradient(135deg, #012008 0%, #0d6124 50%, #16a34a 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(134,239,172,1),rgba(163,230,53,0.7),transparent)',
+    icon: '🌲', temp: '54°', cond: 'Misty',
+    stats: [['Feels','50°'],['Wind','3 mph'],['Humidity','88%'],['UV','Low']],
+  },
+  {
+    id: 'storm',
+    name: 'Storm',
+    desc: 'Crackling gold · Deep charcoal',
+    accent: '#fde047',
+    bg: 'linear-gradient(145deg, #050607 0%, #0f1117 40%, #1c2030 70%, #252a38 100%)',
+    heroBg: 'linear-gradient(135deg, #0a0b10 0%, #1c2030 55%, #2d3340 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(253,224,71,1),rgba(250,204,21,0.7),transparent)',
+    icon: '⛈️', temp: '39°', cond: 'Thunderstorm',
+    stats: [['Feels','33°'],['Wind','28 mph'],['Humidity','95%'],['UV','None']],
+  },
+  {
+    id: 'aurora',
+    name: 'Aurora',
+    desc: 'Northern lights · Violet cosmos',
+    accent: '#2dd4bf',
+    bg: 'linear-gradient(145deg, #010509 0%, #082e2a 35%, #16104a 65%, #0d1f3c 100%)',
+    heroBg: 'linear-gradient(135deg, #04101a 0%, #0f3333 40%, #2d1060 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(45,212,191,1),rgba(167,139,250,0.8),transparent)',
+    icon: '🌌', temp: '28°', cond: 'Clear Night',
+    stats: [['Feels','22°'],['Wind','7 mph'],['Humidity','45%'],['UV','None']],
+  },
+  {
+    id: 'desert',
+    name: 'Desert',
+    desc: 'Scorched gold · Terracotta fire',
+    accent: '#fbbf24',
+    bg: 'linear-gradient(145deg, #0a0300 0%, #451a00 38%, #a04010 65%, #c47820 100%)',
+    heroBg: 'linear-gradient(135deg, #3d1500 0%, #8c3a0e 50%, #d97706 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(253,224,71,1),rgba(239,68,68,0.6),transparent)',
+    icon: '☀️', temp: '98°', cond: 'Blazing Sun',
+    stats: [['Feels','105°'],['Wind','14 mph'],['Humidity','8%'],['UV','Extreme']],
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    desc: 'Abyssal navy · Bioluminescent cyan',
+    accent: '#22d3ee',
+    bg: 'linear-gradient(145deg, #00050e 0%, #001830 38%, #003d5c 65%, #005070 100%)',
+    heroBg: 'linear-gradient(135deg, #000c1a 0%, #003352 50%, #006888 100%)',
+    shimmer: 'linear-gradient(90deg,transparent,rgba(34,211,238,1),rgba(165,243,252,0.7),transparent)',
+    icon: '🌊', temp: '67°', cond: 'Coastal Breeze',
+    stats: [['Feels','63°'],['Wind','18 mph'],['Humidity','76%'],['UV','Med']],
+  },
+];
+
+function renderThemesPage() {
+  const grid = document.getElementById('themesGrid');
+  if (!grid) return;
+  const currentTheme = localStorage.getItem('jwt_theme') || 'dark';
+  grid.innerHTML = '';
+
+  THEMES.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'theme-card' + (t.id === currentTheme ? ' active' : '');
+    card.style.setProperty('--tc-accent', t.accent);
+
+    const statHtml = t.stats.map(([label, val]) => `
+      <div class="tc-stat">
+        <span class="tc-stat-label">${label}</span>
+        <span class="tc-stat-val">${val}</span>
+      </div>`).join('');
+
+    card.innerHTML = `
+      <!-- Checkmark badge -->
+      <div class="tc-check">✓</div>
+
+      <!-- Background -->
+      <div class="tc-bg" style="background:${t.bg}"></div>
+
+      <!-- Top shimmer line -->
+      <div class="tc-shimmer" style="background:${t.shimmer}"></div>
+
+      <!-- Hero zone -->
+      <div class="tc-hero" style="background:${t.heroBg}">
+        <div class="tc-hero-left">
+          <div class="tc-city">Birdsboro</div>
+          <div class="tc-date">Pennsylvania, US</div>
+        </div>
+        <div class="tc-hero-right">
+          <div class="tc-icon">${t.icon}</div>
+          <div class="tc-temp">${t.temp}</div>
+          <div class="tc-cond">${t.cond}</div>
+        </div>
+      </div>
+
+      <!-- Stat chips -->
+      <div class="tc-stats">${statHtml}</div>
+
+      <!-- Name footer -->
+      <div class="tc-footer">
+        <div>
+          <div class="tc-name">${t.name}</div>
+          <div class="tc-desc">${t.desc}</div>
+        </div>
+        <div class="tc-dot" style="background:${t.accent};box-shadow:0 0 10px ${t.accent}"></div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      localStorage.setItem('jwt_theme', t.id);
+      applyTheme(t.id);
+      grid.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+
