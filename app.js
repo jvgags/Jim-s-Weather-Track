@@ -440,6 +440,16 @@ function renderHero(data) {
   $('heroCity').textContent = loc.name;
   $('heroRegion').textContent = `${loc.region ? loc.region + ', ' : ''}${loc.country}`;
   $('heroDate').textContent = formatDate(loc.localtime);
+
+  // Daily summary block under the date
+  const hiTemp = temp(state.unit === 'F' ? today.maxtemp_f : today.maxtemp_c);
+  const loTemp = temp(state.unit === 'F' ? today.mintemp_f : today.mintemp_c);
+  const rainChance = today.daily_chance_of_rain || 0;
+  $('heroDailySummary').innerHTML =
+    `<span class="hds-condition">Today: ${cur.condition.text}</span>` +
+    `<span class="hds-rain">${rainChance}% chance of rain</span>` +
+    `<span class="hds-hilow">High ${hiTemp} / Low ${loTemp}</span>`;
+
   $('heroTemp').textContent = temp(state.unit === 'F' ? cur.temp_f : cur.temp_c);
   $('heroCondition').textContent = cur.condition.text;
   $('heroIcon').textContent = conditionEmoji(cur.condition.code, cur.is_day);

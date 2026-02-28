@@ -291,6 +291,19 @@ body::before {
   color: rgba(255,255,255,0.55); margin-top: 4px; font-weight: 300;
   text-transform: uppercase; letter-spacing: 0.08em;
 }
+.hero-daily-summary {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-top: 10px;
+}
+.hero-daily-summary span {
+  font-size: 0.82rem; font-weight: 400;
+  color: rgba(255,255,255,0.72);
+  letter-spacing: 0.01em;
+}
+.hds-condition {
+  font-weight: 600 !important;
+  color: rgba(255,255,255,0.92) !important;
+}
 .hero-temp-block {
   display: flex; flex-direction: column;
   align-items: flex-end; text-align: right; position: relative; z-index: 1;
